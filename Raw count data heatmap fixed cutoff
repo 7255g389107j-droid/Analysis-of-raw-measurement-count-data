@@ -19,7 +19,7 @@
 options(scipen = 999, width = 120)
 
 # --- 0. PARAMETER CONFIGURATION & STATISTICAL ENGINE ---
-instrument_LOD <- 10       # Instrument Limit of Detection (Floor: 10)
+instrument_LOD <- 10       # Instrument Limit of Detection (Floor: 10) or estimated wt
 alpha          <- 0.001    # Allowable error probability for order reversal
 s              <- 1.0      # Sum of the two true proportions (pi_i + pi_j)
 
