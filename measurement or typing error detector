@@ -3,6 +3,8 @@
 # ------------------------------------------------------------------------------
 # Feature: System Perturber Detection via Leave-One-Out (LOO) Invariance Analysis
 # Graphic Update: Standardized Z-Score Deviation Matrix
+# Comparing data between rows is difficult. 
+# It's impossible to distinguish between sampling bias and adversarial data simulation.
 # Developed by: Tatsuki Itagaki
 # Sunday, May 17, 2026
 # Copyright (c) 2026 Tatsuki Itagaki. All Rights Reserved.
@@ -151,7 +153,7 @@ if(nrow(critical_samples) > 0) {
     cat(sprintf("CRITICAL SAMPLE TARGET ID %s: [Standardized Score: %.3f]\n", 
                 critical_samples$Sample_ID[i], critical_samples$Normalized_Score[i]))
     cat(" >> ACTION REQUIRED: Potential measurement error,\n")
-    cat("    or adversarial data simulation detected. Verify raw source matrix.\n\n")
+    cat("    or typing error detected. Verify raw source matrix.\n\n")
   }
 } else {
   cat("\n[PASS] No critical physical perturbers detected (Threshold = 2.0 Sigma).\n")
