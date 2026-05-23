@@ -1,0 +1,159 @@
+# ==============================================================================
+# ITAGAKI-SYSTEM: FULL-SCALE SENSITIVITY ENGINE (LOO-STABILITY TRACKER)
+# ------------------------------------------------------------------------------
+# Feature: System Perturber Detection via Leave-One-Out (LOO) Invariance Analysis
+# Graphic Update: Standardized Z-Score Deviation Matrix
+# Developed by: Tatsuki Itagaki
+# Sunday, May 17, 2026
+# Copyright (c) 2026 Tatsuki Itagaki. All Rights Reserved.
+# License: MIT License (https://opensource.org)
+# 
+# ACADEMIC CITATION:
+# If you use this software or its logic in your research, please cite:
+# Itagaki, T. (2026). DOI: 10.13140/RG.2.2.35655.05287
+# Itagaki, T. (2026). DOI: 10.13140/RG.2.2.21982.60486
+# ==============================================================================
+
+# --- 0. PHYSICAL FILTERING & DYNAMIC SCALING ---
+set.seed(42) # Absolute reproducibility
+
+P_raw <- as.matrix(Dataset[, colSums(Dataset != 0) > 0])
+n_s <- nrow(P_raw)
+n_t <- ncol(P_raw)
+
+# --- STEP 1 & 2: HIGH-SPEED VECTORIZED MEMORY MAPPING FOR PHYSICAL LOQ ---
+non_zero_mask <- P_raw > 0
+huge_value <- max(P_raw) + 1.0
+P_temp <- P_raw
+P_temp[!non_zero_mask] <- huge_value
+min_col_idx <- max.col(-P_temp, ties.method = "first")
+sample_minima <- P_raw[1:n_s + (min_col_idx - 1) * n_s]
+
+# Apply the strict 10x safety barrier globally (Poisson Noise Floor Cutoff)
+is_reliable_mat <- sweep(P_raw, 1, sample_minima * 10, ">=")
+is_reliable_mat[is.na(is_reliable_mat)] <- FALSE
+
+# ULTRA-STRICT POLICY A: Isolate Universally Reliable Taxa (URT) present in ALL samples
+valid_taxa_mask <- colSums(is_reliable_mat) == n_s
+
+if(sum(valid_taxa_mask) < 2) {
+  stop("CRITICAL ERROR: Zero dimensions passed the Ultra-Strict Policy A filter. URT backbone collapsed.")
+}
+
+d_m <- P_raw[, valid_taxa_mask, drop = FALSE]
+taxa_ids <- colnames(d_m)
+if(is.null(taxa_ids)) taxa_ids <- paste0("Taxon_", 1:ncol(d_m))
+
+# Dynamic Effective Library Size Estimation based on the physical anchor density
+avg_min_val <- mean(apply(d_m, 2, min))
+eff_lib <- 1 / avg_min_val 
+
+# --- 1. CORE WRAPPER FOR STABILITY METRICS ---
+calc_system_stability <- function(data_subset, lib_size) {
+  L <- log(data_subset)
+  P <- data_subset
+  
+  # Algebraic Tracking of Invariance Ratio (IR Residuals)
+  obs_v <- apply(L, 2, var)
+  theo_v <- 1 / (colMeans(P) * lib_size)
+  ir_vals <- obs_v / theo_v
+  
+  return(c(IR_Min = mean(ir_vals))) 
+}
+
+# --- 2. EXECUTE LEAVE-ONE-OUT (LOO) ANALYSIS ---
+n_total <- nrow(d_m)
+baseline <- calc_system_stability(d_m, eff_lib)
+loo_results <- matrix(NA, nrow = n_total, ncol = 1)
+colnames(loo_results) <- c("Delta_IR")
+
+cat("Executing Leave-One-Out System Perturbation Diagnostics...\n")
+for(i in 1:n_total) {
+  res_i <- calc_system_stability(d_m[-i, , drop = FALSE], eff_lib)
+  loo_results[i, "Delta_IR"] <- baseline["IR_Min"] - res_i["IR_Min"] 
+}
+
+# Transform raw delta metrics into standardized Z-scores to isolate absolute outliers
+perturber_score <- as.vector(scale(loo_results[, "Delta_IR"]))
+
+# --- 3. GRAPHIC RENDERING PROFILE (STANDARDIZED Z-SCORE SPECIFICATION) ---
+# Defensive Plotting Function for Uniform Layout Execution
+render_stability_barplot <- function() {
+  par(mar = c(6, 6, 5, 2), bg = "#F9F9F9")
+  
+  # Y-Axis captures the Standardized Score directly to visualize sigma deviations
+  y_z <- perturber_score
+  
+  bp <- barplot(y_z, 
+                main = "SYSTEM PERTURBATION LANDSCAPE (LOO-STABILITY INDEX)",
+                sub = "Framework: Invariant Physical Topology Tracker (Base-R Engine)",
+                col = ifelse(y_z > 2.0, "#E74C3C", ifelse(y_z > 0, "#3498DB", "#95A5A6")), 
+                border = NA, 
+                names.arg = 1:n_total, 
+                las = 1, 
+                cex.names = 0.8,
+                font.main = 2,
+                font.lab = 2,
+                ylab = "Destabilization Impact (Standardized Z-Score)", 
+                xlab = "Excluded Sample Index (LOO Target)",
+                ylim = c(min(y_z, -1) - 0.5, max(y_z, 2.5) + 0.5))
+  
+  # Overlay numeric precision directly on the topological bars
+  text(bp, y_z, labels = round(y_z, 3), pos = ifelse(y_z >= 0, 3, 1), cex = 0.7, font = 2, col = "black", xpd = TRUE)
+  
+  # Static markers for standard statistical thresholds
+  abline(h = 0, col = "#2C3E50", lwd = 1.2)
+  abline(h = 2.0, col = "#E74C3C", lty = 2, lwd = 1.5) # Critical Alert Line (+2 Sigma)
+  
+  legend("topleft", legend = c("Critical Perturber (Z > 2.0)", "Destabilizing Trend (Z > 0)", "Stabilizing Component"),
+         fill = c("#E74C3C", "#3498DB", "#95A5A6"), bty = "n", cex = 0.8, font = 2)
+}
+
+# Interactive Screen Protection Layer (Prevents Headless X11 Display Crashes)
+if(interactive()) {
+  dev.new(width = 14, height = 8)
+  render_stability_barplot()
+}
+
+# Permanent Academic PDF Report Generation
+pdf_filename <- "ITAGAKI_System_Stability_Report.pdf"
+pdf(file = pdf_filename, width = 14, height = 8)
+render_stability_barplot()
+dev.off()
+
+cat(sprintf("\n[SUCCESS] Standardized PDF Report exported securely to: %s\n", pdf_filename))
+
+# --- 4. DATA STRUCTURING & RANKING EXECUTION ---
+impact_df <- data.frame(
+  Sample_ID = 1:n_total,
+  Raw_Delta_IR = round(loo_results[, "Delta_IR"], 6),
+  Normalized_Score = round(perturber_score, 3)
+)
+impact_df <- impact_df[order(-impact_df$Normalized_Score), ]
+
+cat("\n==========================================================\n")
+cat("      STABILITY PERTURBATION REPORT (LEAVE-ONE-OUT)       \n")
+cat("==========================================================\n")
+print(head(impact_df, 20), row.names = FALSE)
+cat("----------------------------------------------------------\n")
+cat("DEFINITION: 'Normalized_Score' measures how many standard \n")
+cat("deviations a sample shifts the overall system invariance.\n")
+cat("==========================================================\n")
+
+# --- 5. AUTOMATED FORENSIC QUALITY ALERT SYSTEM ---
+# Triggers instantly if any sample deviates beyond the strict +2.0 Sigma barrier
+critical_samples <- impact_df[impact_df$Normalized_Score > 2.0, ]
+
+if(nrow(critical_samples) > 0) {
+  cat("\n[!] PHYSICAL INTEGRITY ALERT TRIPPED (BLACK-BOX DECODER)\n")
+  cat("----------------------------------------------------------\n")
+  for(i in 1:nrow(critical_samples)) {
+    cat(sprintf("CRITICAL SAMPLE TARGET ID %s: [Standardized Score: %.3f]\n", 
+                critical_samples$Sample_ID[i], critical_samples$Normalized_Score[i]))
+    cat(" >> ACTION REQUIRED: Potential biological perturbation, measurement error,\n")
+    cat("    or adversarial data simulation detected. Verify raw source matrix.\n\n")
+  }
+} else {
+  cat("\n[PASS] No critical physical perturbers detected (Threshold = 2.0 Sigma).\n")
+}
+cat("==========================================================\n")
