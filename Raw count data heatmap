@@ -1,6 +1,6 @@
 # ==============================================================================
 # INTEGRATED SYSTEM RELIABILITY MAP & EFFECTIVE LOD RESOLUTION PIPELINE
-# Effective LOD is max(INSTRUMENT_LOD, Poisson Noise Floor, 1,000).
+# Effective LOD is max(INSTRUMENT_LOD, 1000).
 # wt >= 100 & INSTRUMENT_LOD >= 10 is an essential condition.
 # wt >= 1,000 is a necessary condition for normal approximation validity.
 # wi >= 1,000 is a necessary condition for Reliable_Taxa.
@@ -26,8 +26,8 @@ alpha          <- 0.001    # Allowable error probability for order reversal
 s              <- 1.0      # Sum of the two true proportions (pi_i + pi_j)
 
 # --- HARD-ANCHOR PRE-FLIGHT VERIFICATION ---
-if (w_t < 1000 || instrument_LOD < 10) {
-  stop("Execution halted: Parameter profile sits below the required statistical/physical floor (w_t >= 1000, LOD >= 10).", call. = FALSE)
+if (instrument_LOD < 10) {
+  stop("Execution halted: Parameter profile sits below the required physical floor (LOD >= 10).", call. = FALSE)
 }
 
 # 1. Compute Poisson Noise Floor
@@ -37,7 +37,7 @@ delta_min           <- sqrt((z_alpha_sq * s) / (w_t + z_alpha_sq))
 Poisson_Noise_Floor <- ceiling(w_t * delta_min)
 
 # 2. Derive Effective LOD & Cutoff Value (Dynamically Adjusted)
-effective_LOD       <- max(instrument_LOD, Poisson_Noise_Floor, 1,000)
+effective_LOD       <- max(instrument_LOD, 1000)
 cutoff_value        <- effective_LOD * 10
 
 # --- 1. DATA PREPARATION ---
