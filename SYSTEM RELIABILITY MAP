@@ -29,29 +29,42 @@ if (instrument_LOD < 10) {
 }
 
 # NOTE: Replace 'Dataset' with your actual compositional dataframe/matrix
-# Ensure Dataset is formatted as a matrix
 Dataset_mat <- as.matrix(Dataset)
 
 # 1. Dynamically track total count size (w_t) per sample from the data
 w_t_vector <- rowSums(Dataset_mat)
 
-if (any(w_t_vector < 10000)) {
-  stop("Execution halted: One or more samples sit below the statistical floor (w_t >= 10000).", call. = FALSE)
+# --- LOW-READ DYNAMIC ZERO-ZERO REPLACEMENT ENGINE ---
+# Identify samples below the required 10,000 read threshold
+low_read_samples <- w_t_vector < 10000
+
+if (any(low_read_samples)) {
+  # Force all taxa counts to 0 for samples below the threshold
+  Dataset_mat[low_read_samples, ] <- 0
+  # Recalculate w_t_vector so that low-read samples are evaluated as 0
+  w_t_vector <- rowSums(Dataset_mat)
 }
 
 # 2. Compute Sample-Specific Poisson Noise Floor and Effective LOD
 z_alpha             <- qnorm(1 - alpha / 2)
 z_alpha_sq          <- z_alpha^2
-delta_min_vector    <- sqrt((z_alpha_sq * s) / (w_t_vector + z_alpha_sq))
+
+# Avoid division by zero for suppressed samples using pmax(..., 1)
+delta_min_vector    <- sqrt((z_alpha_sq * s) / (pmax(w_t_vector, 1) + z_alpha_sq))
 Poisson_Noise_Floor <- ceiling(w_t_vector * delta_min_vector)
 
 # Derive sample-specific Effective LOD and Cutoff values
 effective_LOD_vec   <- pmax(instrument_LOD, Poisson_Noise_Floor, 1000)
 cutoff_value_vec    <- effective_LOD_vec * 10
 
-# --- 1. DATA PREPARATION ---
-# Filter taxa that meet the effective LOD in at least one sample
-valid_taxa_mask     <- colSums(sweep(Dataset_mat, 1, effective_LOD_vec, `>=`)) > 0
+# --- 1. DATA PREPARATION (ULTRA-FAST MATRIX RECYCLING) ---
+valid_taxa_mask     <- colSums(t(t(Dataset_mat) >= effective_LOD_vec)) > 0
+
+# Handle edge case where no taxa survive across the entire dataset
+if (!any(valid_taxa_mask)) {
+  stop("Execution halted: No taxa met the Effective LOD criteria in any sample after cleaning.", call. = FALSE)
+}
+
 P_raw               <- Dataset_mat[, valid_taxa_mask, drop = FALSE]
 
 sample_ids          <- rownames(P_raw)
@@ -60,9 +73,8 @@ n_s                 <- nrow(P_raw)
 n_t                 <- ncol(P_raw)
 
 # --- 2. VECTORIZED RELIABILITY MAPPING ---
-# Compare each element against its sample-specific threshold
-detected_mask       <- sweep(P_raw, 1, effective_LOD_vec, `>=`)
-is_reliable         <- sweep(P_raw, 1, cutoff_value_vec, `>=`)
+detected_mask       <- t(t(P_raw) >= effective_LOD_vec)
+is_reliable         <- t(t(P_raw) >= cutoff_value_vec)
 
 # Initialize status matrix: -1 = Undetected, 0 = Uncertain, 1 = Reliable
 rel_status_mat      <- matrix(-1, nrow = n_s, ncol = n_t, dimnames = list(sample_ids, colnames(P_raw)))
@@ -77,24 +89,19 @@ urt_list            <- colnames(P_raw)[urt_mask]
 pdf("ITAGAKI_2_Reliability_Heatmap.pdf", width = 18, height = 12)
 layout(matrix(c(1, 2), nrow = 1), widths = c(0.88, 0.12))
 
-# Sort columns by the number of reliable samples (highest to lowest)
 overall_rel         <- colSums(rel_status_mat == 1)
 sorted_rel_mat      <- rel_status_mat[, order(overall_rel, decreasing = TRUE), drop = FALSE]
-
-# Flip matrix vertically to align with axis(2) indexing from top to bottom
 plot_rel            <- t(sorted_rel_mat[n_s:1, , drop = FALSE])
 
 par(mar = c(15, 12, 5, 2), bg = "#FFFFFF")
 image(1:ncol(sorted_rel_mat), 1:nrow(sorted_rel_mat), plot_rel, 
-      col = c("#E5E8E8", "#F39C12", "#2980B9"),  # High-contrast color palette
+      col = c("#E5E8E8", "#F39C12", "#2980B9"),  
       zlim = c(-1, 1),
       axes = FALSE, ann = FALSE)
 
-# Add clean grid lines
 abline(v = seq(0.5, ncol(sorted_rel_mat) + 0.5, 1), col = "white", lwd = 1)
 abline(h = seq(0.5, nrow(sorted_rel_mat) + 0.5, 1), col = "white", lwd = 1)
 
-# Render clean text axes
 axis(1, at = 1:ncol(sorted_rel_mat), labels = colnames(sorted_rel_mat), 
      las = 2, cex.axis = 0.55, font = 2, tick = FALSE)
 axis(2, at = 1:nrow(sorted_rel_mat), labels = rev(rownames(sorted_rel_mat)), 
@@ -102,7 +109,6 @@ axis(2, at = 1:nrow(sorted_rel_mat), labels = rev(rownames(sorted_rel_mat)),
 
 title(main = "SYSTEM RELIABILITY MAP (Physical & Statistical Existence Floor)")
 
-# Draw legend panel
 par(mar = c(0, 0, 0, 0)); plot.new()
 legend("center", legend = c("Reliable", "Uncertain", "Undetected"), 
        fill = c("#2980B9", "#F39C12", "#E5E8E8"), bty = "n", title = "Status", cex = 0.9)
@@ -113,7 +119,8 @@ vec_detected        <- rowSums(detected_mask)
 vec_reliable        <- rowSums(rel_status_mat == 1)
 vec_uncertain       <- vec_detected - vec_reliable
 
-valid_samples       <- vec_detected > 0
+# Keep all samples in the report to track which ones were zeroed out
+valid_samples       <- rep(TRUE, n_s)
 
 final_report        <- data.frame(
   Sample_ID      = sample_ids[valid_samples],
@@ -125,7 +132,6 @@ final_report        <- data.frame(
   Uncertain_Taxa = vec_uncertain[valid_samples]
 )
 
-# Calculate Uncertainty Score (%) avoiding NaN edge cases
 total_detected      <- final_report$Uncertain_Taxa + final_report$Reliable_Taxa
 uncertainty_pct     <- ifelse(total_detected > 0, (final_report$Uncertain_Taxa / total_detected) * 100, 0)
 final_report$Uncertainty_Score <- paste0(round(uncertainty_pct, 1), "%")
@@ -139,4 +145,5 @@ cat("----------------------------------------------------------\n")
 print(final_report, row.names = FALSE)
 cat("----------------------------------------------------------\n")
 cat("Uncertainty_Score = zero is suspected noise data.\n")
+cat("Samples with Total_Counts = 0 failed the 10k read floor.\n")
 cat("==========================================================\n")
