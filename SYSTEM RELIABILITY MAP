@@ -35,8 +35,8 @@ Dataset_mat <- as.matrix(Dataset)
 w_t_vector <- rowSums(Dataset_mat)
 
 # --- LOW-READ DYNAMIC ZERO-ZERO REPLACEMENT ENGINE ---
-# Identify samples below the required 10,000 read threshold
-low_read_samples <- w_t_vector < 10000
+# Identify samples below the required 1,000 read threshold
+low_read_samples <- w_t_vector < 1000
 
 if (any(low_read_samples)) {
   # Force all taxa counts to 0 for samples below the threshold
