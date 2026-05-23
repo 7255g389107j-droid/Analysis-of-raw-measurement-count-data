@@ -1,0 +1,91 @@
+# ==============================================================================
+# ITAGAKI-SYSTEM: COMPONENT STABILITY EVALUATOR (PHYSICAL DEVIATION ENGINE)
+# Use only to distinguish between artificial and natural data.
+# The Invariance Ratio (IR) for natural data is meaningless.
+# Developed by: Tatsuki Itagaki
+# Sunday, May 17, 2026
+# Copyright (c) 2026 Tatsuki Itagaki. All Rights Reserved.
+# License: MIT License (https://opensource.org)
+# 
+# ACADEMIC CITATION:
+# If you use this software or its logic in your research, please cite:
+# Itagaki, T. (2026). DOI: 10.13140/RG.2.2.35655.05287
+# Itagaki, T. (2026). DOI: 10.13140/RG.2.2.21982.60486
+# ==============================================================================
+
+# --- 1. DATA PREPARATION & PHYSICAL FILTERING ---
+P_raw <- as.matrix(Dataset[, colSums(Dataset != 0) > 0])
+n_s <- nrow(P_raw)
+n_t <- ncol(P_raw)
+
+# --- STEP 1 & 2: HIGH-SPEED VECTORIZED MEMORY MAPPING FOR PHYSICAL LOQ ---
+non_zero_mask <- P_raw > 0
+huge_value <- max(P_raw) + 1.0
+P_temp <- P_raw
+P_temp[!non_zero_mask] <- huge_value
+min_col_idx <- max.col(-P_temp, ties.method = "first")
+sample_minima <- P_raw[1:n_s + (min_col_idx - 1) * n_s]
+
+# Apply the strict 10x safety barrier globally (Poisson Noise Floor Cutoff)
+is_reliable_mat <- sweep(P_raw, 1, sample_minima * 10, ">=")
+is_reliable_mat[is.na(is_reliable_mat)] <- FALSE
+
+# ULTRA-STRICT POLICY A: Keep only taxa that are >= 10x floor in EVERY sample
+valid_taxa_mask <- colSums(is_reliable_mat) == n_s
+
+if(sum(valid_taxa_mask) < 2) {
+  stop("CRITICAL ERROR: No taxa passed the ULTRA-STRICT Policy A filter.")
+}
+
+max_floor <- max(sample_minima) 
+max_threshold <- max_floor * 10
+
+cat("System Noise Floor (Max floor) :", sprintf("%.2e", max_floor), "\n")
+cat("Reliability Threshold (Max 10x):", sprintf("%.2e", max_threshold), "\n")
+
+P_reliable <- P_raw[, valid_taxa_mask, drop = FALSE]
+n_t_filtered <- ncol(P_reliable)
+
+cat("Filtered Components         :", n_t_filtered, "/", n_t, "\n")
+
+# --- 2. CORE STABILITY CALCULATION (IR & Sp) ---
+# Dynamic Effective Library Size for the reliable subset
+eff_lib <- 1 / mean(apply(P_reliable, 2, min))
+
+# Log-transform reliable data securely
+L <- log(P_reliable)
+
+# Observed Variance (V_obs)
+obs_v <- apply(L, 2, var)
+
+# Theoretical Variance (V_theo) based on Poisson sampling theory
+theo_v <- 1 / (colMeans(P_reliable) * eff_lib)
+
+# IR (Invariance Ratio) & Sp (Physical Deviation Score)
+ir_values <- obs_v / theo_v
+sp_values <- log10(ir_values + 1)
+
+# --- 3. FINAL COMPONENT STABILITY REPORT ---
+stability_report <- data.frame(
+  Taxon_ID = colnames(P_reliable),
+  Mean_Abundance = as.vector(colMeans(P_reliable)),
+  Invariance_Ratio = round(as.vector(ir_values), 4),
+  Physical_Deviation_Sp = round(as.vector(sp_values), 6),
+  stringsAsFactors = FALSE
+)
+
+# Sorting by Sp (Descending) to identify system-wide turbulence drivers
+stability_report <- stability_report[order(-stability_report$Physical_Deviation_Sp), ]
+
+# --- 4. OUTPUT SUMMARY ---
+cat("\n==========================================================\n")
+cat("      ITAGAKI PHYSICAL STABILITY REPORT (FILTERED)        \n")
+cat("==========================================================\n")
+print(head(stability_report, n_t_filtered), row.names = FALSE)
+cat("----------------------------------------------------------\n")
+cat("DEFINITION:\n")
+cat("  - Invariance_Ratio (IR): Ratio of observed vs theoretical noise.\n")
+cat("  - Invariance_Ratio (IR) = zero is suspected noise data.\n")
+cat("  - Physical_Deviation (Sp): Stability score (Lower is more Stable).\n")
+cat("  - Physical_Deviation (Sp) = zero is suspected noise data.\n")
+cat("==========================================================\n")
