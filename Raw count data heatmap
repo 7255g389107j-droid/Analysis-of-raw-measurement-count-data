@@ -3,8 +3,6 @@
 # Effective LOD is max(INSTRUMENT_LOD, Poisson Noise Floor).
 # wt >= 100 & INSTRUMENT_LOD >= 10 is an essential condition.
 # wt >= 1,000 is a necessary condition for normal approximation validity.
-# Sampling bias remains unresolved.
-# One is forced to rely on the assumption that sampling bias does not exist.
 # 
 # Developed by: Tatsuki Itagaki
 # Copyright (c) 2026 Tatsuki Itagaki
