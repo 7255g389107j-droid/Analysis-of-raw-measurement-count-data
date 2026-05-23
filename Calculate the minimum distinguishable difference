@@ -1,0 +1,35 @@
+# ==============================================================================
+# Configuration: Manually set the parameters below
+# ==============================================================================
+# Total count size (sampling window)
+# NOTE: The minimum recommended value for w_t is 1,000 to ensure normal approximation validity.
+w_t <- 10000  
+
+# Allowable error probability for order reversal
+alpha <- 0.001  
+
+# Sum of the two true proportions (pi_i + pi_j). Standard baseline is 1.0.
+s <- 1.0  
+
+# ==============================================================================
+# Calculation Process
+# ==============================================================================
+# Calculate the two-tailed critical value Z_alpha using base R's qnorm
+z_alpha <- qnorm(1 - alpha / 2)
+z_alpha_sq <- z_alpha^2
+
+# Apply the exact formula derived from multinomial negative covariance
+numerator <- z_alpha_sq * s
+denominator <- w_t + z_alpha_sq
+
+# Calculate the minimum distinguishable difference
+delta_min <- sqrt(numerator / denominator)
+
+# ==============================================================================
+# Output Results
+# ==============================================================================
+cat("--- Analysis Results ---\n")
+cat(sprintf("Total Counts (w_t)  : %d\n", w_t))
+cat(sprintf("Alpha Level (Error) : %.3f\n", alpha))
+cat(sprintf("Minimum Delta       : %.5f (%.3f%%)\n", delta_min, delta_min * 100))
+ 
