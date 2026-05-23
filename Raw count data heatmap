@@ -1,6 +1,6 @@
 # ==============================================================================
 # INTEGRATED SYSTEM RELIABILITY MAP & EFFECTIVE LOD RESOLUTION PIPELINE
-# Effective LOD is max(INSTRUMENT_LOD, Poisson Noise Floor).
+# Effective LOD is max(INSTRUMENT_LOD, Poisson Noise Floor, 1,000).
 # wt >= 100 & INSTRUMENT_LOD >= 10 is an essential condition.
 # wt >= 1,000 is a necessary condition for normal approximation validity.
 # wi >= 1,000 is a necessary condition for Reliable_Taxa.
@@ -37,7 +37,7 @@ delta_min           <- sqrt((z_alpha_sq * s) / (w_t + z_alpha_sq))
 Poisson_Noise_Floor <- ceiling(w_t * delta_min)
 
 # 2. Derive Effective LOD & Cutoff Value (Dynamically Adjusted)
-effective_LOD       <- max(instrument_LOD, Poisson_Noise_Floor)
+effective_LOD       <- max(instrument_LOD, Poisson_Noise_Floor, 1,000)
 cutoff_value        <- effective_LOD * 10
 
 # --- 1. DATA PREPARATION ---
