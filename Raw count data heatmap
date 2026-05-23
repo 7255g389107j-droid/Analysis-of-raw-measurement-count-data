@@ -1,7 +1,8 @@
 # =================================================================
 # It would be best to determine the detection limit of the measuring instrument 
 # and set a cutoff value 10 times that limit.
-# wt >= 100 & INSTRUMENT_LOD >= 10 is a necessary condition.
+# wt >= 100 & INSTRUMENT_LOD >= 10 is a essential condition.
+# wt >= 1,000 is a necessary condition.
 # Developed by: Tatsuki Itagaki
 # Copyright (c) 2026 Tatsuki Itagaki
 # License: MIT License (https://opensource.org)
