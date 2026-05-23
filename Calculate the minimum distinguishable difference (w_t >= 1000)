@@ -1,15 +1,18 @@
 # ==============================================================================
 # Configuration: Manually set the parameters below
+# INSTRUMENT_LOD >= 10 is a necessary condition.
+# Effective LOD is max(INSTRUMENT_LOD, Poisson Noise Floor).
 # ==============================================================================
-# Total count size (sampling window)
 # NOTE: The minimum recommended value for w_t is 1,000 to ensure normal approximation validity.
-w_t <- 10000  
 
-# Allowable error probability for order reversal
-alpha <- 0.001  
+# Total count size (sampling window)
+w_t <- 10000  
 
 # Sum of the two true proportions (pi_i + pi_j). Standard baseline is 1.0.
 s <- 1.0  
+
+# Allowable error probability for order reversal
+alpha <- 0.001  
 
 # ==============================================================================
 # Calculation Process
@@ -25,6 +28,8 @@ denominator <- w_t + z_alpha_sq
 # Calculate the minimum distinguishable difference
 delta_min <- sqrt(numerator / denominator)
 
+Poisson_Noise_Floor <- w_t * delta_min
+
 # ==============================================================================
 # Output Results
 # ==============================================================================
@@ -32,4 +37,4 @@ cat("--- Analysis Results ---\n")
 cat(sprintf("Total Counts (w_t)  : %d\n", w_t))
 cat(sprintf("Alpha Level (Error) : %.3f\n", alpha))
 cat(sprintf("Minimum Delta       : %.5f (%.3f%%)\n", delta_min, delta_min * 100))
- 
+cat(sprintf("Poisson Noise Floor : %.2f\n", Poisson_Noise_Floor))
