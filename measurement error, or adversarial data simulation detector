@@ -150,7 +150,7 @@ if(nrow(critical_samples) > 0) {
   for(i in 1:nrow(critical_samples)) {
     cat(sprintf("CRITICAL SAMPLE TARGET ID %s: [Standardized Score: %.3f]\n", 
                 critical_samples$Sample_ID[i], critical_samples$Normalized_Score[i]))
-    cat(" >> ACTION REQUIRED: Potential biological perturbation, measurement error,\n")
+    cat(" >> ACTION REQUIRED: Potential measurement error,\n")
     cat("    or adversarial data simulation detected. Verify raw source matrix.\n\n")
   }
 } else {
