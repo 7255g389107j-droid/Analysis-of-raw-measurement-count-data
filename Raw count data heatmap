@@ -1,57 +1,79 @@
-# =================================================================
-# It would be best to determine the detection limit of the measuring instrument 
-# and set a cutoff value 10 times that limit.
-# wt >= 100 & INSTRUMENT_LOD >= 10 is a essential condition.
-# wt >= 1,000 is a necessary condition.
+# ==============================================================================
+# INTEGRATED SYSTEM RELIABILITY MAP & EFFECTIVE LOD RESOLUTION PIPELINE
+# Effective LOD is max(INSTRUMENT_LOD, Poisson Noise Floor).
+# wt >= 100 & INSTRUMENT_LOD >= 10 is an essential condition.
+# wt >= 1,000 is a necessary condition for normal approximation validity.
+# 
 # Developed by: Tatsuki Itagaki
 # Copyright (c) 2026 Tatsuki Itagaki
 # License: MIT License (https://opensource.org)
 # 
 # ACADEMIC CITATION:
-# If you use this software or its logic in your research, 
-# please cite the following works:
-# Itagaki, T (2026).  DOI: 10.13140/RG.2.2.35655.05287
+# If you use this software or its logic in your research, please cite:
+# Itagaki, T. (2026). DOI: 10.13140/RG.2.2.35655.05287
 # Itagaki, T. (2026). DOI: 10.13140/RG.2.2.21982.60486
-# =================================================================
+# ==============================================================================
 
-# --- 0. PARAMETER & ENVIRONMENT TEST ---
-instrument_LOD <- 10 # Instrument Limit of Detection (Floor: 10)
-cutoff_value <- instrument_LOD * 10
+# Lock environmental layout variables to enforce strict non-fragmented text layout
+options(scipen = 999, width = 120)
+
+# --- 0. PARAMETER CONFIGURATION & STATISTICAL ENGINE ---
+w_t            <- 100000   # Total count size / sampling window (Floor: 1,000)
+instrument_LOD <- 10       # Instrument Limit of Detection (Floor: 10)
+
+alpha          <- 0.001    # Allowable error probability for order reversal
+s              <- 1.0      # Sum of the two true proportions (pi_i + pi_j)
+
+# --- HARD-ANCHOR PRE-FLIGHT VERIFICATION ---
+if (w_t < 1000 || instrument_LOD < 10) {
+  stop("Execution halted: Parameter profile sits below the required statistical/physical floor (w_t >= 1000, LOD >= 10).", call. = FALSE)
+}
+
+# 1. Compute Poisson Noise Floor
+z_alpha             <- qnorm(1 - alpha / 2)
+z_alpha_sq          <- z_alpha^2
+delta_min           <- sqrt((z_alpha_sq * s) / (w_t + z_alpha_sq))
+Poisson_Noise_Floor <- ceiling(w_t * delta_min)
+
+# 2. Derive Effective LOD & Cutoff Value (Dynamically Adjusted)
+effective_LOD       <- max(instrument_LOD, Poisson_Noise_Floor)
+cutoff_value        <- effective_LOD * 10
 
 # --- 1. DATA PREPARATION ---
-valid_taxa_mask <- colSums(Dataset >= instrument_LOD) > 0
-P_raw <- as.matrix(Dataset[, valid_taxa_mask, drop = FALSE])
+# NOTE: Replace 'Dataset' with your actual compositional dataframe/matrix
+valid_taxa_mask     <- colSums(Dataset >= effective_LOD) > 0
+P_raw               <- as.matrix(Dataset[, valid_taxa_mask, drop = FALSE])
 
-sample_ids <- rownames(P_raw)
+sample_ids          <- rownames(P_raw)
 if(is.null(sample_ids)) sample_ids <- paste0("S_", 1:nrow(P_raw))
-n_s <- nrow(P_raw)
-n_t <- ncol(P_raw)
+n_s                 <- nrow(P_raw)
+n_t                 <- ncol(P_raw)
 
 # --- 2. VECTORIZED RELIABILITY MAPPING ---
-detected_mask <- P_raw >= instrument_LOD
+detected_mask       <- P_raw >= effective_LOD
 
 # Initialize status matrix: -1 = Undetected, 0 = Uncertain, 1 = Reliable
-rel_status_mat <- matrix(-1, nrow = n_s, ncol = n_t, dimnames = list(sample_ids, colnames(P_raw)))
+rel_status_mat      <- matrix(-1, nrow = n_s, ncol = n_t, dimnames = list(sample_ids, colnames(P_raw)))
 rel_status_mat[detected_mask] <- 0
 
 # Update values above the cutoff to "Reliable (1)"
-is_reliable <- P_raw >= cutoff_value
+is_reliable         <- P_raw >= cutoff_value
 rel_status_mat[is_reliable & detected_mask] <- 1
 
 # Extract Universal Reliable Taxa (URT) list across all samples
-urt_mask <- colSums(rel_status_mat == 1) == n_s
-urt_list <- colnames(P_raw)[urt_mask]
+urt_mask            <- colSums(rel_status_mat == 1) == n_s
+urt_list            <- colnames(P_raw)[urt_mask]
 
-# --- 3. RELIABILITY HEATMAP ---
+# --- 3. HYBRID RELIABILITY HEATMAP GENERATION ---
 pdf("ITAGAKI_2_Reliability_Heatmap.pdf", width = 18, height = 12)
 layout(matrix(c(1, 2), nrow = 1), widths = c(0.88, 0.12))
 
 # Sort columns by the number of reliable samples (highest to lowest)
-overall_rel <- colSums(rel_status_mat == 1)
-sorted_rel_mat <- rel_status_mat[, order(overall_rel, decreasing = TRUE), drop = FALSE]
+overall_rel         <- colSums(rel_status_mat == 1)
+sorted_rel_mat      <- rel_status_mat[, order(overall_rel, decreasing = TRUE), drop = FALSE]
 
 # Flip matrix vertically to align with axis(2) indexing from top to bottom
-plot_rel <- t(sorted_rel_mat[n_s:1, , drop = FALSE])
+plot_rel            <- t(sorted_rel_mat[n_s:1, , drop = FALSE])
 
 par(mar = c(15, 12, 5, 2), bg = "#FFFFFF")
 image(1:ncol(sorted_rel_mat), 1:nrow(sorted_rel_mat), plot_rel, 
@@ -69,7 +91,7 @@ axis(1, at = 1:ncol(sorted_rel_mat), labels = colnames(sorted_rel_mat),
 axis(2, at = 1:nrow(sorted_rel_mat), labels = rev(rownames(sorted_rel_mat)), 
      las = 1, cex.axis = 0.7, tick = FALSE)
 
-title(main = "SYSTEM RELIABILITY MAP (Physical Existence)")
+title(main = "SYSTEM RELIABILITY MAP (Physical & Statistical Existence Floor)")
 
 # Draw legend panel
 par(mar = c(0, 0, 0, 0)); plot.new()
@@ -78,31 +100,35 @@ legend("center", legend = c("Reliable", "Uncertain", "Undetected"),
 dev.off()
 
 # --- 4. VECTORIZED REPORT GENERATION ---
-vec_detected  <- rowSums(detected_mask)
-vec_reliable  <- rowSums(rel_status_mat == 1)
-vec_uncertain <- vec_detected - vec_reliable
+vec_detected        <- rowSums(detected_mask)
+vec_reliable        <- rowSums(rel_status_mat == 1)
+vec_uncertain       <- vec_detected - vec_reliable
 
-valid_samples <- vec_detected > 0
+valid_samples       <- vec_detected > 0
 
-final_report <- data.frame(
+final_report        <- data.frame(
   Sample_ID      = sample_ids[valid_samples],
-  Eff_Lib        = rep(1 / instrument_LOD, sum(valid_samples)),
-  Noise_Floor    = rep(instrument_LOD, sum(valid_samples)),
+  Eff_Lib        = rep(1 / effective_LOD, sum(valid_samples)),
+  Noise_Floor    = rep(effective_LOD, sum(valid_samples)),
   Detected_Taxa  = vec_detected[valid_samples],
   Reliable_Taxa  = vec_reliable[valid_samples],
   Uncertain_Taxa = vec_uncertain[valid_samples]
 )
 
 # Calculate Uncertainty Score (%) avoiding NaN edge cases
-total_detected <- final_report$Uncertain_Taxa + final_report$Reliable_Taxa
-uncertainty_pct <- ifelse(total_detected > 0, (final_report$Uncertain_Taxa / total_detected) * 100, 0)
+total_detected      <- final_report$Uncertain_Taxa + final_report$Reliable_Taxa
+uncertainty_pct     <- ifelse(total_detected > 0, (final_report$Uncertain_Taxa / total_detected) * 100, 0)
 final_report$Uncertainty_Score <- paste0(round(uncertainty_pct, 1), "%")
 
 # --- 5. CONSOLIDATED SUMMARY REPORT ---
 cat("\n==========================================================\n")
 cat("      FINAL SYSTEM RELIABILITY SUMMARY REPORT             \n")
 cat("==========================================================\n")
+cat(sprintf("ENGINE EXECUTION BOUNDARY (Effective LOD) : %.2f\n", effective_LOD))
+cat(sprintf("PHYSICAL INSTRUMENT BOUNDARY (LOD)       : %d\n", instrument_LOD))
+cat(sprintf("STATISTICAL SAMPLING FLOOR (Poisson)     : %.2f\n", Poisson_Noise_Floor))
+cat("----------------------------------------------------------\n")
 print(final_report, row.names = FALSE)
+cat("----------------------------------------------------------\n")
 cat("Uncertainty_Score = zero is suspected noise data.\n")
 cat("==========================================================\n")
- 
