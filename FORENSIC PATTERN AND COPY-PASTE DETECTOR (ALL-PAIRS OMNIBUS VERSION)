@@ -1,0 +1,117 @@
+# --- 5. FORENSIC PATTERN AND COPY-PASTE DETECTOR (ALL-PAIRS OMNIBUS VERSION) ---
+if (exists("sorted_rel_mat") && nrow(sorted_rel_mat) > 1 && exists("P_raw") && exists("sample_ids")) {
+  
+  sorted_sample_ids <- rownames(sorted_rel_mat)
+  n_samples_sorted  <- length(sorted_sample_ids)
+  
+  sorted_detected  <- rowSums(sorted_rel_mat != -1)
+  sorted_reliable  <- rowSums(sorted_rel_mat == 1)
+  
+  sorted_scores <- rep(-1, times = n_samples_sorted)
+  valid_idx     <- which(sorted_detected > 0)
+  
+  if (length(valid_idx) > 0) {
+    sorted_scores[valid_idx] <- round(((sorted_detected[valid_idx] - sorted_reliable[valid_idx]) / sorted_detected[valid_idx]) * 100, 1)
+  }
+  
+  all_pairs_idx <- combn(n_samples_sorted, 2)
+  idx_A <- all_pairs_idx[1, ]
+  idx_B <- all_pairs_idx[2, ]
+  
+  is_all_score_match <- which((sorted_scores[idx_A] == sorted_scores[idx_B]) & (sorted_scores[idx_A] != -1))
+  
+  # === TRUE EARLY PASS ===
+  if (length(is_all_score_match) == 0) {
+    cat("\n==========================================================\n")
+    cat("          FORENSIC INTEGRITY PASS REPORT                  \n")
+    cat("==========================================================\n")
+    cat("No identical Uncertainty_Scores detected among ANY sample pairs.\n")
+    cat("All individual stochastic fluctuations are preserved normally.\n")
+    cat("==========================================================\n")
+  } else {
+    cat("\n==========================================================\n")
+    cat("    CRITICAL SECURITY ALERT: OMNIBUS PATTERN MATCH TRIPPED \n")
+    cat("==========================================================\n")
+    cat(sprintf("Identical existence profiles detected across %d pairs instantly via All-Pairs C-Filtering.\n", length(is_all_score_match)))
+    cat("Human visual inspection of the Reliability Heatmap is MANDATORY.\n")
+    cat("Verifying raw values within P_raw for fabrication detection...\n\n")
+    
+    raw_row_map_A <- match(sorted_sample_ids[idx_A[is_all_score_match]], sample_ids)
+    raw_row_map_B <- match(sorted_sample_ids[idx_B[is_all_score_match]], sample_ids)
+    
+    valid_pairs <- which(!is.na(raw_row_map_A) & !is.na(raw_row_map_B))
+    
+    if (length(valid_pairs) > 0) {
+      idx_A_nums <- raw_row_map_A[valid_pairs]
+      idx_B_nums <- raw_row_map_B[valid_pairs]
+      
+      matrix_slice_A <- P_raw[idx_A_nums, , drop = FALSE]
+      matrix_slice_B <- P_raw[idx_B_nums, , drop = FALSE]
+      
+      # Axis 1:（Zeros vs Non-Zeros）
+      is_pattern_dup <- rowSums((matrix_slice_A > 0) != (matrix_slice_B > 0)) == 0
+      true_match_mask <- which(is_pattern_dup)
+      
+      if (length(true_match_mask) > 0) {
+        sub_slice_A <- matrix_slice_A[true_match_mask, , drop = FALSE]
+        sub_slice_B <- matrix_slice_B[true_match_mask, , drop = FALSE]
+        
+        diff_matrix <- matrix(abs(sub_slice_A - sub_slice_B), 
+                              nrow = length(true_match_mask), 
+                              ncol = ncol(sub_slice_A))
+        is_copy_paste <- rowSums(diff_matrix > 1e-9) == 0
+        
+        s1_names <- sample_ids[idx_A_nums[true_match_mask]]
+        s2_names <- sample_ids[idx_B_nums[true_match_mask]]
+        
+        verdict <- ifelse(is_copy_paste, 
+                          " -> WARNING: Raw numeric values are 100% IDENTICAL. Extreme suspicion of data fabrication (Copy-Paste).", 
+                          " -> NOTICE: Patterns match but raw values differ. Evaluate for scaling manipulation or artificial simulation.")
+        
+        alert_summary <- data.frame(Sample_A = s1_names, Sample_B = s2_names, Forensic_Verdict = verdict, stringsAsFactors = FALSE)
+        print(alert_summary, right = FALSE, row.names = FALSE)
+        cat("----------------------------------------------------------\n")
+        
+        # --- 6. DEEP DIVE REPORT INTO SUSPECT COMPONENTS ---
+        master_forensic_list <- list()
+        list_idx <- 1
+        
+        for (p in true_match_mask) {
+          row_A_val <- idx_A_nums[p]
+          row_B_val <- idx_B_nums[p]
+          
+          vals_A <- P_raw[row_A_val, ]
+          vals_B <- P_raw[row_B_val, ]
+          
+          active_components <- which(vals_A > 0 | vals_B > 0)
+          
+          if (length(active_components) > 0) {
+            master_forensic_list[[list_idx]] <- data.frame(
+              Compare_Pair = rep(paste0("[", sample_ids[row_A_val], " vs ", sample_ids[row_B_val], "]"), times = length(active_components)),
+              Component    = as.character(colnames(P_raw)[active_components]),
+              Raw_Val_A    = as.numeric(as.vector(vals_A[active_components])),
+              Raw_Val_B    = as.numeric(as.vector(vals_B[active_components])),
+              stringsAsFactors = FALSE
+            )
+            list_idx <- list_idx + 1
+          }
+        }
+        
+        if (length(master_forensic_list) > 0) {
+          master_forensic_db <- do.call(rbind, master_forensic_list)
+          rownames(master_forensic_db) <- NULL
+          
+          cat("Detailed raw value comparison for suspect components (Omnibus Flattened View):\n\n")
+          print(master_forensic_db, row.names = FALSE)
+        } else {
+          cat("\n[INFO] Identified patterns match but no non-zero active components found.\n")
+        }
+      } else {
+        cat("\n[INFO] Identified scores match but no identical raw values or topology confirmed.\n")
+      }
+    } else {
+      cat("\n[INFO] Identified scores match but no valid data rows available for matrix verification.\n")
+    }
+    cat("==========================================================\n")
+  }
+}
