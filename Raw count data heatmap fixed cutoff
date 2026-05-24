@@ -34,17 +34,6 @@ Dataset_mat <- as.matrix(Dataset)
 # 1. Dynamically track total count size (w_t) per sample from the data
 w_t_vector <- rowSums(Dataset_mat)
 
-# --- LOW-READ DYNAMIC ZERO-ZERO REPLACEMENT ENGINE ---
-# Identify samples below the required 1,000 read threshold
-low_read_samples <- w_t_vector < 1000
-
-if (any(low_read_samples)) {
-  # Force all taxa counts to 0 for samples below the threshold
-  Dataset_mat[low_read_samples, ] <- 0
-  # Recalculate w_t_vector so that low-read samples are evaluated as 0
-  w_t_vector <- rowSums(Dataset_mat)
-}
-
 # 2. Derive Global Static Effective LOD and Cutoff Values
 # Using scalar configuration bypassing per-sample array allocation
 effective_LOD       <- max(instrument_LOD, 1000)
