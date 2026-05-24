@@ -48,7 +48,7 @@ if (any(low_read_samples)) {
 # 2. Derive Global Static Effective LOD and Cutoff Values
 # Using scalar configuration bypassing per-sample array allocation
 effective_LOD       <- max(instrument_LOD, 1000)
-cutoff_value        <- effective_LOD * 10
+cutoff_value        <- effective_LOD * 10 # Theoretically, a value of 1 is sufficient, but for engineering safety, it's set to 10.
 
 # --- 1. DATA PREPARATION (ULTRA-FAST SCALAR EVALUATION) ---
 # Direct scalar evaluation utilizing native hardware-level matrix speed
