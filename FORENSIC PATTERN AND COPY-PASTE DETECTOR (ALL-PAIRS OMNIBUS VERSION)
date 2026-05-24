@@ -1,3 +1,19 @@
+# ==============================================================================
+# ITAGAKI-SYSTEM
+# ------------------------------------------------------------------------------
+# This system is applicable to any type of count data.
+# To be used after applying the Raw count data heatmap fixed cutoff or the SYSTEM RELIABILITY MAP.
+# This system is a mathematical algorithm designed to protect humanity from malicious intent.
+# Developed by: Tatsuki Itagaki
+# Copyright (c) 2026 Tatsuki Itagaki
+# License: MIT License (https://opensource.org)
+# 
+# ACADEMIC CITATION:
+# If you use this software or its logic in your research, please cite:
+# Itagaki, T. (2026). DOI: 10.13140/RG.2.2.35655.05287
+# Itagaki, T. (2026). DOI: 10.13140/RG.2.2.13198.73284
+# ==============================================================================
+
 # --- 5. FORENSIC PATTERN AND COPY-PASTE DETECTOR (ALL-PAIRS OMNIBUS VERSION) ---
 if (exists("sorted_rel_mat") && nrow(sorted_rel_mat) > 1 && exists("P_raw") && exists("sample_ids")) {
   
