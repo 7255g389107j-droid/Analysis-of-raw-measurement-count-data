@@ -14,7 +14,7 @@
 # Itagaki, T. (2026). DOI: 10.13140/RG.2.2.13198.73284
 # ==============================================================================
 
-run_itabaki_forensics <- function(sorted_rel_mat, P_raw, sample_ids) {
+run_itagaki_forensics <- function(sorted_rel_mat, P_raw, sample_ids) {
   
   timestamp <- format(Sys.time(), "%Y%m%d_%H%M%S")
   log_filename <- paste0("FORENSIC_REPORT_", timestamp, ".txt")
@@ -146,4 +146,4 @@ run_itabaki_forensics <- function(sorted_rel_mat, P_raw, sample_ids) {
 }
 
 
-  run_itabaki_forensics(sorted_rel_mat, P_raw, sample_ids)
+  run_itagaki_forensics(sorted_rel_mat, P_raw, sample_ids)
