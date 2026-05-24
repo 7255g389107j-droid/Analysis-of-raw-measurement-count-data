@@ -55,7 +55,7 @@ Poisson_Noise_Floor <- ceiling(w_t_vector * delta_min_vector)
 
 # Derive sample-specific Effective LOD and Cutoff values
 effective_LOD_vec   <- pmax(instrument_LOD, Poisson_Noise_Floor, 1000)
-cutoff_value_vec    <- effective_LOD_vec * 10
+cutoff_value_vec    <- effective_LOD_vec * 10 # Theoretically, a value of 1 is sufficient, but for engineering safety, it's set to 10.
 
 # --- 1. DATA PREPARATION (ULTRA-FAST MATRIX RECYCLING) ---
 valid_taxa_mask     <- colSums(t(t(Dataset_mat) >= effective_LOD_vec)) > 0
