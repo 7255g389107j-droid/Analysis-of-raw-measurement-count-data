@@ -1,9 +1,9 @@
 # ==============================================================================
 # INTEGRATED SYSTEM RELIABILITY MAP & EFFECTIVE LOD RESOLUTION PIPELINE
-# Effective LOD is max(INSTRUMENT_LOD, 1000) applied globally.
+# Effective LOD is 10,000 applied globally.
 # wt >= 100 & INSTRUMENT_LOD >= 10 is an essential condition.
-# wt >= 1,000 is a necessary condition for normal approximation validity.
-# wi >= 1,000 is a necessary condition for Reliable_Taxa.
+# wt >= 10,000 is a necessary condition for normal approximation validity.
+# wi >= 10,000 is a necessary condition for Reliable_Taxa.
 # 
 # Developed by: Tatsuki Itagaki
 # Copyright (c) 2026 Tatsuki Itagaki
@@ -19,15 +19,10 @@
 options(scipen = 999, width = 120)
 
 # --- 0. PARAMETER CONFIGURATION & STATISTICAL ENGINE ---
-instrument_LOD <- 10       # Instrument Limit of Detection (Floor: 10) or estimated wt
 alpha          <- 0.001    # Allowable error probability for order reversal
 s              <- 1.0      # Sum of the two true proportions (pi_i + pi_j)
 
 # --- HARD-ANCHOR PRE-FLIGHT VERIFICATION ---
-if (instrument_LOD < 10) {
-  stop("Execution halted: Parameter profile sits below the required physical floor (LOD >= 10).", call. = FALSE)
-}
-
 # NOTE: Replace 'Dataset' with your actual compositional dataframe/matrix
 Dataset_mat <- as.matrix(Dataset)
 
@@ -36,8 +31,7 @@ w_t_vector <- rowSums(Dataset_mat)
 
 # 2. Derive Global Static Effective LOD and Cutoff Values
 # Using scalar configuration bypassing per-sample array allocation
-effective_LOD       <- max(instrument_LOD, 1000)
-cutoff_value        <- effective_LOD * 10 # Theoretically, a value of 1 is sufficient, but for engineering safety, it's set to 10.
+effective_LOD       <- 10000 # Minimum Threshold: Please adjust according to the wt.
 
 # --- 1. DATA PREPARATION (ULTRA-FAST SCALAR EVALUATION) ---
 # Direct scalar evaluation utilizing native hardware-level matrix speed
@@ -58,7 +52,7 @@ n_t                 <- ncol(P_raw)
 # --- 2. VECTORIZED RELIABILITY MAPPING ---
 # Pure low-level C matrix arrays evaluated simultaneously
 detected_mask       <- P_raw >= effective_LOD
-is_reliable         <- P_raw >= cutoff_value
+is_reliable         <- P_raw >= effective_LOD
 
 # Initialize status matrix: -1 = Undetected, 0 = Uncertain, 1 = Reliable
 rel_status_mat      <- matrix(-1, nrow = n_s, ncol = n_t, dimnames = list(sample_ids, colnames(P_raw)))
@@ -123,7 +117,6 @@ final_report$Uncertainty_Score <- paste0(round(uncertainty_pct, 1), "%")
 cat("\n==========================================================\n")
 cat("      FINAL SYSTEM RELIABILITY SUMMARY REPORT             \n")
 cat("==========================================================\n")
-cat(sprintf("PHYSICAL INSTRUMENT BOUNDARY (LOD)       : %d\n", instrument_LOD))
 cat(sprintf("GLOBAL EFFECTIVE DETECTIONS FLOOR        : %.2f\n", effective_LOD))
 cat("----------------------------------------------------------\n")
 print(final_report, row.names = FALSE)
