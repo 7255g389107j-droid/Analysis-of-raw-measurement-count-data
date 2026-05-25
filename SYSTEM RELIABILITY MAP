@@ -1,6 +1,6 @@
 # ==============================================================================
 # INTEGRATED SYSTEM RELIABILITY MAP & EFFECTIVE LOD RESOLUTION PIPELINE
-# Effective LOD is max(INSTRUMENT_LOD, Poisson Noise Floor, 1,000) calculated per sample.
+# Effective LOD is max(Poisson Noise Floor, 1,000) calculated per sample.
 # wt >= 100 & INSTRUMENT_LOD >= 10 is an essential condition.
 # wt >= 1,000 is a necessary condition for normal approximation validity.
 # wi >= 1,000 is a necessary condition for Reliable_Taxa.
@@ -19,15 +19,11 @@
 options(scipen = 999, width = 120)
 
 # --- 0. PARAMETER CONFIGURATION & STATISTICAL ENGINE ---
-instrument_LOD <- 10       # Instrument Limit of Detection (Floor: 10)
+# Instrument Limit of Detection (Floor: 10)
 alpha          <- 0.001    # Allowable error probability for order reversal
 s              <- 1.0      # Sum of the two true proportions (pi_i + pi_j)
 
 # --- HARD-ANCHOR PRE-FLIGHT VERIFICATION ---
-if (instrument_LOD < 10) {
-  stop("Execution halted: Parameter profile sits below the required physical floor (LOD >= 10).", call. = FALSE)
-}
-
 # NOTE: Replace 'Dataset' with your actual compositional dataframe/matrix
 Dataset_mat <- as.matrix(Dataset)
 
@@ -43,8 +39,8 @@ delta_min_vector    <- sqrt((z_alpha_sq * s) / (pmax(w_t_vector, 1) + z_alpha_sq
 Poisson_Noise_Floor <- ceiling(w_t_vector * delta_min_vector)
 
 # Derive sample-specific Effective LOD and Cutoff values
-effective_LOD_vec   <- pmax(instrument_LOD, Poisson_Noise_Floor, 1000)
-cutoff_value_vec    <- effective_LOD_vec * 10 # Theoretically, a value of 1 is sufficient, but for engineering safety, it's set to 10.
+effective_LOD_vec   <- pmax(Poisson_Noise_Floor, 1000)
+cutoff_value_vec    <- effective_LOD_vec * 10 # For engineering safety, it's set to 10.
 
 # --- 1. DATA PREPARATION (ULTRA-FAST MATRIX RECYCLING) ---
 valid_taxa_mask     <- colSums(t(t(Dataset_mat) >= effective_LOD_vec)) > 0
@@ -129,10 +125,8 @@ final_report$Uncertainty_Score <- paste0(round(uncertainty_pct, 1), "%")
 cat("\n==========================================================\n")
 cat("      FINAL SYSTEM RELIABILITY SUMMARY REPORT             \n")
 cat("==========================================================\n")
-cat(sprintf("PHYSICAL INSTRUMENT BOUNDARY (LOD)       : %d\n", instrument_LOD))
 cat("----------------------------------------------------------\n")
 print(final_report, row.names = FALSE)
 cat("----------------------------------------------------------\n")
 cat("Uncertainty_Score = zero is suspected noise data.\n")
-cat("Samples with Total_Counts = 0 failed the 1,000 read floor.\n")
 cat("==========================================================\n")
