@@ -1,0 +1,94 @@
+# ==============================================================================
+# INTEGRATED SYSTEM RELIABILITY & EFFECTIVE LOD RESOLUTION PIPELINE (HIGH-SCALE)
+# Effective LOD is max (Poisson Noise Floor) calculated per sample.
+# wt >= 100 & INSTRUMENT_LOD >= 10 is an essential condition.
+# wt >= 1,000 is a necessary condition for normal approximation validity.
+# wi >= 1,000 is a necessary condition for Reliable_Taxa.
+# 
+# Developed by: Tatsuki Itagaki
+# Copyright (c) 2026 Tatsuki Itagaki
+# License: MIT License (https://opensource.org)
+# 
+# ACADEMIC CITATION:
+# If you use this software or its logic in your research, please cite:
+# Itagaki, T. (2026). DOI: 10.13140/RG.2.2.25054.19523
+# Itagaki, T. (2026). DOI: 10.13140/RG.2.2.14987.86562
+# ==============================================================================
+
+# Lock environmental layout variables to enforce strict non-fragmented text layout
+options(scipen = 999, width = 120)
+
+# --- 0. PARAMETER CONFIGURATION & STATISTICAL ENGINE ---
+# alpha          <- 0.001    # Allowable error probability for order reversal
+
+# --- HARD-ANCHOR PRE-FLIGHT VERIFICATION ---
+# NOTE: Replace 'Dataset' with your actual compositional dataframe/matrix
+Dataset_mat <- as.matrix(Dataset)
+
+# 1. Dynamically track total count size (w_t) per sample from the data
+w_t_vector <- rowSums(Dataset_mat)
+
+# 2. Compute Sample-Specific Poisson Noise Floor and Effective LOD
+cutoff_value_vec    <- ceiling(33 * sqrt(w_t_vector) - 178/sqrt(w_t_vector)) # effective_LOD_vec 
+
+# --- 1. DATA PREPARATION (ULTRA-FAST MATRIX RECYCLING) ---
+valid_taxa_mask     <- colSums(t(t(Dataset_mat) > 0)) > 0
+
+if (!any(valid_taxa_mask)) {
+  stop("Execution halted: No taxa met the Effective LOD criteria in any sample after cleaning.", call. = FALSE)
+}
+
+P_raw               <- Dataset_mat[, valid_taxa_mask, drop = FALSE]
+rm(Dataset_mat); gc() # Release raw dataset memory immediately for massive row scaling
+
+sample_ids          <- rownames(P_raw)
+if(is.null(sample_ids)) sample_ids <- paste0("S_", 1:nrow(P_raw))
+n_s                 <- nrow(P_raw)
+n_t                 <- ncol(P_raw)
+
+# --- 2. VECTORIZED RELIABILITY MAPPING ---
+detected_mask       <- t(t(P_raw) > 0)
+is_reliable         <- t(t(P_raw) >= cutoff_value_vec)
+
+# Initialize status matrix: -1 = Undetected, 0 = Uncertain, 1 = Reliable
+rel_status_mat      <- matrix(-1L, nrow = n_s, ncol = n_t, dimnames = list(sample_ids, colnames(P_raw)))
+rel_status_mat[detected_mask] <- 0L
+rel_status_mat[is_reliable & detected_mask] <- 1L
+
+# Extract Universal Reliable Taxa (URT) list across all samples
+urt_mask            <- colSums(rel_status_mat == 1L) == n_s
+urt_list            <- colnames(P_raw)[urt_mask]
+
+# --- 3. VECTORIZED REPORT GENERATION ---
+vec_detected        <- rowSums(detected_mask)
+vec_reliable        <- rowSums(rel_status_mat == 1L)
+vec_uncertain       <- vec_detected - vec_reliable
+
+# Memory Cleanup before final report structure allocation
+rm(detected_mask, is_reliable); gc()
+
+final_report        <- data.frame(
+  Sample_ID      = sample_ids,
+  Total_Counts   = w_t_vector,
+  Cutoff_Value    = cutoff_value_vec,
+  Detected_Taxa  = vec_detected,
+  Reliable_Taxa  = vec_reliable,
+  Uncertain_Taxa = vec_uncertain
+)
+
+total_detected      <- final_report$Uncertain_Taxa + final_report$Reliable_Taxa
+uncertainty_pct     <- ifelse(total_detected > 0, (final_report$Uncertain_Taxa / total_detected) * 100, 0)
+final_report$Uncertainty_Score <- paste0(round(uncertainty_pct, 1), "%")
+
+# --- 4. CONSOLIDATED SUMMARY REPORT ---
+cat("\n==========================================================\n")
+cat("      FINAL SYSTEM RELIABILITY SUMMARY REPORT             \n")
+cat("==========================================================\n")
+cat("----------------------------------------------------------\n")
+print(head(final_report, n = 20), row.names = FALSE) # Showing first 20 rows as a preview
+if(nrow(final_report) > 20) {
+  cat(paste0("... and ", nrow(final_report) - 20, " more samples truncated from console view.\n"))
+}
+cat("----------------------------------------------------------\n")
+cat("Uncertainty_Score = zero is suspected noise data.\n")
+cat("==========================================================\n")
