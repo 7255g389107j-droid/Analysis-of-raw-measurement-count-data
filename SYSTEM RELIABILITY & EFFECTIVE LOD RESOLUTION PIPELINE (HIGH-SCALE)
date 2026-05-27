@@ -23,7 +23,15 @@ options(scipen = 999, width = 120)
 
 # --- HARD-ANCHOR PRE-FLIGHT VERIFICATION ---
 # NOTE: Replace 'Dataset' with your actual compositional dataframe/matrix
-# data.table::fread(Dataset.csv)
+# Dataset_dt  <- data.table::fread("Dataset.csv", data.table = FALSE)
+# Dataset_mat <- as.matrix(Dataset_dt)
+# rm(Dataset_dt); gc()
+
+#sample_names <- Dataset_dt[, 1]
+#Dataset_mat  <- as.matrix(Dataset_dt[, -1]) 
+#rownames(Dataset_mat) <- sample_names
+#rm(Dataset_dt, sample_names); gc()
+
 Dataset_mat <- as.matrix(Dataset)
 
 # 1. Dynamically track total count size (w_t) per sample from the data
