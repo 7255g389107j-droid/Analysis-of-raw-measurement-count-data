@@ -57,3 +57,7 @@ source("reliability_filter.R")
 ## License
 This project is licensed under the MIT License - see the [LICENSE](https://opensource.org) page for details.
 Copyright (c) 2026 Tatsuki Itagaki.
+
+---
+
+# This is something I gained only by acknowledging my defeat and reflecting on it. This system would not exist without my mentor (Norio Sugimoto) who taught me statistics.
